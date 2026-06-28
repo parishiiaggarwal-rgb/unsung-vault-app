@@ -132,3 +132,4 @@ same pattern works here:
 - There's no participant photo upload — Round 1 dossiers are text-only
   by design (era, field, achievement, fact, quote) to keep the build
   self-contained with no external image dependencies.
+
