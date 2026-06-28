@@ -27,11 +27,15 @@ export default function AdminPanel() {
     return () => clearInterval(interval);
   }, []);
 
-  async function call(path, body) {
+  async function call(path, body, method = "post") {
     setError("");
     setInfo("");
     try {
-      await api.post(path, body || {});
+      if (method === "delete") {
+        await api.delete(path);
+      } else {
+        await api.post(path, body || {});
+      }
       setInfo("Done.");
       refresh();
     } catch (err) {
@@ -68,6 +72,7 @@ export default function AdminPanel() {
         <Round3Controls call={call} state={state} />
         <Round4Controls call={call} state={state} />
         <GeneralControls call={call} />
+        <AccessCodesPanel />
 
         <p className="section-label" style={{ marginTop: 36 }}>
           Live leaderboard
@@ -206,7 +211,152 @@ function GeneralControls({ call }) {
       <button className="btn ghost small" onClick={() => call("/admin/advance-round", { round: 5 })}>
         End event / show final leaderboard
       </button>
+      <button
+        className="btn danger small"
+        onClick={() => {
+          if (window.confirm("This resets the round/timer back to the lobby for everyone. Participant scores are kept. Continue?")) {
+            call("/admin/reset-game");
+          }
+        }}
+      >
+        Reset game state (back to lobby)
+      </button>
+      <button
+        className="btn danger small"
+        onClick={() => {
+          if (window.confirm("This permanently deletes ALL participants and their scores. This cannot be undone. Continue?")) {
+            call("/admin/participants/reset", null, "delete");
+          }
+        }}
+      >
+        Wipe all participants
+      </button>
     </ControlBlock>
+  );
+}
+
+function AccessCodesPanel() {
+  const [count, setCount] = useState(20);
+  const [prefix, setPrefix] = useState("DET");
+  const [codes, setCodes] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function loadCodes() {
+    try {
+      const res = await api.get("/admin/codes");
+      setCodes(res.data.codes);
+    } catch (err) {
+      setError("Could not load codes.");
+    }
+  }
+
+  useEffect(() => {
+    loadCodes();
+  }, []);
+
+  async function handleGenerate() {
+    setError("");
+    setLoading(true);
+    try {
+      await api.post("/admin/codes/generate", { count, prefix });
+      await loadCodes();
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not generate codes.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleClearUnclaimed() {
+    setError("");
+    try {
+      await api.delete("/admin/codes/unclaimed");
+      await loadCodes();
+    } catch (err) {
+      setError("Could not clear unclaimed codes.");
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  const unclaimedCount = codes.filter((c) => !c.isClaimed).length;
+  const claimedCount = codes.filter((c) => c.isClaimed).length;
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <p className="section-label" style={{ marginBottom: 12 }}>
+        Participant access codes
+      </p>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+        <label style={{ fontSize: 12, color: "var(--paper-dim)" }}>
+          How many
+          <input
+            type="number"
+            min={1}
+            max={200}
+            value={count}
+            onChange={(e) => setCount(Number(e.target.value))}
+            style={{ width: 80, marginLeft: 8 }}
+          />
+        </label>
+        <label style={{ fontSize: 12, color: "var(--paper-dim)" }}>
+          Prefix
+          <input
+            value={prefix}
+            onChange={(e) => setPrefix(e.target.value)}
+            style={{ width: 80, marginLeft: 8 }}
+          />
+        </label>
+        <button className="btn small" onClick={handleGenerate} disabled={loading}>
+          {loading ? "Generating..." : "Generate codes"}
+        </button>
+        <button className="btn ghost small" onClick={handleClearUnclaimed}>
+          Clear unclaimed codes
+        </button>
+        <button className="btn ghost small" onClick={handlePrint}>
+          Print list
+        </button>
+      </div>
+
+      <p style={{ fontSize: 12, color: "var(--paper-dim)", marginBottom: 12 }}>
+        {codes.length} total codes &middot; {claimedCount} claimed &middot; {unclaimedCount} waiting
+        to be handed out
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+          gap: 8,
+          maxHeight: 320,
+          overflowY: "auto"
+        }}
+      >
+        {codes.map((c) => (
+          <div
+            key={c.accessCode}
+            style={{
+              padding: "8px 10px",
+              border: `1px solid ${c.isClaimed ? "var(--vault-green-bright)" : "var(--hairline)"}`,
+              fontSize: 12
+            }}
+          >
+            <p style={{ margin: 0, fontFamily: "Oswald, sans-serif", fontWeight: 600, color: "var(--brass-bright)" }}>
+              {c.accessCode}
+            </p>
+            <p style={{ margin: 0, color: "var(--paper-dim)" }}>
+              {c.isClaimed ? c.name : "Not yet used"}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
