@@ -200,6 +200,16 @@ function DossierCard({ file, isFlipped, onToggle }) {
           >
             {file.name}
           </p>
+          <p style={{ fontSize: 11, color: "var(--brass)", textTransform: "uppercase", margin: "0 0 4px" }}>
+            {file.field}
+          </p>
+          <p style={{ fontSize: 11, color: "var(--paper-dim)", margin: "0 0 10px" }}>{file.era}</p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--paper)", margin: "0 0 8px" }}>
+            {file.achievement}
+          </p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--paper-dim)", fontStyle: "italic" }}>
+            {file.fact}
+          </p>
         </div>
       )}
     </div>
