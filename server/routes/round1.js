@@ -7,26 +7,20 @@ const { requireAuth } = require("../middleware/auth");
 
 // GET /api/round1/files
 // Returns the public-facing dossier data (no answer keys) for the grid.
+// Names are always shown in full — no redaction mechanic.
 router.get("/files", requireAuth, async (req, res) => {
   const files = personalities.map((p) => ({
     code: p.code,
-    name: p.redactedInFile1 ? redactName(p.name) : p.name,
+    name: p.name,
     era: p.era,
     field: p.field,
     achievement: p.achievement,
     fact: p.fact,
     quote: p.quote,
-    isRedacted: p.redactedInFile1
+    isRedacted: false
   }));
   res.json({ files });
 });
-
-function redactName(name) {
-  return name
-    .split(" ")
-    .map((word) => word[0] + "_".repeat(Math.max(word.length - 1, 1)))
-    .join(" ");
-}
 
 // POST /api/round1/open
 // Body: { code } — marks a file as opened (for progress tracking only,
