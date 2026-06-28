@@ -19,7 +19,7 @@ function titleForRank(rank, total) {
 router.get("/", requireAuth, async (req, res) => {
   const participants = await Participant.find({ isAdmin: { $ne: true } })
     .sort({ totalScore: -1, techCoins: -1 })
-    .select("name totalScore techCoins currentRound");
+    .select("name totalScore techCoins currentRound isEliminated eliminatedAfterRound");
 
   const ranked = participants.map((p, i) => ({
     rank: i + 1,
@@ -27,6 +27,8 @@ router.get("/", requireAuth, async (req, res) => {
     totalScore: p.totalScore,
     techCoins: p.techCoins,
     currentRound: p.currentRound,
+    isEliminated: p.isEliminated,
+    eliminatedAfterRound: p.eliminatedAfterRound,
     title: titleForRank(i + 1, participants.length)
   }));
 
@@ -49,6 +51,8 @@ router.get("/me", requireAuth, async (req, res) => {
     name: p.name,
     totalScore: p.totalScore,
     techCoins: p.techCoins,
+    isEliminated: p.isEliminated,
+    eliminatedAfterRound: p.eliminatedAfterRound,
     title: titleForRank(index + 1, participants.length)
   });
 });

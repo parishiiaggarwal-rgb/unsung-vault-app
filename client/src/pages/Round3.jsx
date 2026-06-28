@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import TopBar from "../components/TopBar";
 import { useAuth } from "../context/AuthContext";
+
+const CASE_SECONDS = 120;
 
 export default function Round3() {
   const navigate = useNavigate();
@@ -15,6 +17,13 @@ export default function Round3() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [draggingClueId, setDraggingClueId] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(CASE_SECONDS);
+  const [eliminated, setEliminated] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+
+  const submittingRef = useRef(false);
+  const assignmentsRef = useRef(assignments);
+  assignmentsRef.current = assignments;
 
   useEffect(() => {
     async function load() {
@@ -32,14 +41,25 @@ export default function Round3() {
 
   const current = cases[caseIndex];
 
+  useEffect(() => {
+    if (!current || result) return; // stop counting once submitted/graded
+    if (secondsLeft <= 0) {
+      handleSubmitCase(true);
+      return;
+    }
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, current, result]);
+
   function handleDrop(code) {
-    if (!draggingClueId || result) return;
+    if (!draggingClueId || result || submittingRef.current) return;
     setAssignments((prev) => ({ ...prev, [draggingClueId]: code }));
     setDraggingClueId(null);
   }
 
   function handleUnassign(clueId) {
-    if (result) return;
+    if (result || submittingRef.current) return;
     setAssignments((prev) => {
       const next = { ...prev };
       delete next[clueId];
@@ -47,26 +67,34 @@ export default function Round3() {
     });
   }
 
-  async function handleSubmitCase() {
-    if (!current) return;
+  async function handleSubmitCase(isTimeout = false) {
+    if (!current || submittingRef.current) return;
+    submittingRef.current = true;
     setError("");
+    const liveAssignments = assignmentsRef.current;
     const matches = current.clues.map((c) => ({
       clueId: c.id,
-      assignedCode: assignments[c.id] || null
+      assignedCode: liveAssignments[c.id] || null
     }));
     try {
       const res = await api.post("/round3/submit", { caseId: current.id, matches });
       setResult(res.data);
+      setTimedOut(isTimeout);
       updateParticipant({ totalScore: res.data.totalScore });
     } catch (err) {
       setError(err.response?.data?.error || "Could not submit case.");
+      submittingRef.current = false;
     }
   }
 
   async function handleNextCase() {
     if (caseIndex + 1 >= cases.length) {
       try {
-        await api.post("/round3/complete");
+        const res = await api.post("/round3/complete");
+        if (res.data.isEliminated) {
+          setEliminated(true);
+          return;
+        }
       } catch (err) {
         // proceed anyway
       }
@@ -76,6 +104,9 @@ export default function Round3() {
     setCaseIndex((i) => i + 1);
     setAssignments({});
     setResult(null);
+    setSecondsLeft(CASE_SECONDS);
+    setTimedOut(false);
+    submittingRef.current = false;
   }
 
   if (loading) {
@@ -86,10 +117,30 @@ export default function Round3() {
     );
   }
 
+  if (eliminated) {
+    return (
+      <div className="page">
+        <TopBar roundLabel="Round 3 — Case file challenge" />
+        <div className="main" style={{ maxWidth: 600, textAlign: "center", paddingTop: 60 }}>
+          <p className="section-label">Case closed for you</p>
+          <h2 style={{ fontSize: 24, marginBottom: 16 }}>You've been eliminated</h2>
+          <p style={{ color: "var(--paper-dim)", fontSize: 13 }}>
+            Your combined score placed you in the bottom quarter of the remaining detectives.
+            Thanks for investigating — check the leaderboard to see how everyone finished.
+          </p>
+          <button className="btn" style={{ marginTop: 24 }} onClick={() => navigate("/leaderboard")}>
+            View leaderboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!current) return null;
 
   const assignedClueIds = new Set(Object.keys(assignments));
   const unassignedClues = current.clues.filter((c) => !assignedClueIds.has(c.id));
+  const urgent = secondsLeft <= 20 && !result;
 
   return (
     <div className="page">
@@ -97,9 +148,30 @@ export default function Round3() {
       <div className="main">
         {error && <div className="error-banner">{error}</div>}
 
-        <p className="section-label">
-          Case {caseIndex + 1} of {cases.length}
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <p className="section-label" style={{ marginBottom: 0 }}>
+            Case {caseIndex + 1} of {cases.length}
+          </p>
+          {!result && (
+            <span
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                fontWeight: 600,
+                fontSize: 18,
+                color: urgent ? "var(--redact-red-bright)" : "var(--brass-bright)"
+              }}
+            >
+              {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+            </span>
+          )}
+        </div>
+        <div className="timer-bar-track" style={{ marginBottom: 18 }}>
+          <div
+            className={`timer-bar-fill ${urgent ? "urgent" : ""}`}
+            style={{ width: result ? "100%" : `${(secondsLeft / CASE_SECONDS) * 100}%` }}
+          />
+        </div>
+
         <h2 style={{ fontSize: 22, marginBottom: 6 }}>{current.title}</h2>
         <p style={{ color: "var(--paper-dim)", fontSize: 13, marginBottom: 28 }}>
           Drag each clue onto the detective it belongs to. Some clues don't belong to anyone on
@@ -118,7 +190,7 @@ export default function Round3() {
               {unassignedClues.map((clue) => (
                 <div
                   key={clue.id}
-                  draggable={!result}
+                  draggable={!result && !submittingRef.current}
                   onDragStart={() => setDraggingClueId(clue.id)}
                   className="card"
                   style={{
@@ -187,6 +259,7 @@ export default function Round3() {
 
         {result && (
           <div className="success-banner" style={{ marginTop: 24 }}>
+            {timedOut && "Time ran out — submitted as-is. "}
             {result.correctMatches} / {result.totalClues} clues correctly placed. +
             {result.pointsEarned} points.
           </div>
@@ -194,7 +267,7 @@ export default function Round3() {
 
         <div style={{ marginTop: 28, textAlign: "right" }}>
           {!result ? (
-            <button className="btn" onClick={handleSubmitCase}>
+            <button className="btn" onClick={() => handleSubmitCase(false)}>
               Submit case
             </button>
           ) : (

@@ -4,6 +4,7 @@ const Participant = require("../models/Participant");
 const questions = require("../data/questions");
 const personalities = require("../data/personalities");
 const { requireAuth } = require("../middleware/auth");
+const { maybeRunRound2Elimination } = require("../utils/elimination");
 
 const PRICES = {
   hint1: 20,
@@ -122,6 +123,9 @@ router.post("/purchase", requireAuth, async (req, res) => {
 
 // POST /api/round2/answer
 // Body: { questionId, selectedIndex, doubledDown }
+// selectedIndex can be null — this represents a timeout (the 1-minute
+// per-question timer ran out with nothing selected). A null/missing
+// selectedIndex is always scored as incorrect, same as a wrong guess.
 // purchaseUsed is read from the server-tracked round2Purchases, not the
 // client body, so a participant can't claim a discount/hint they didn't
 // actually pay for.
@@ -140,7 +144,8 @@ router.post("/answer", requireAuth, async (req, res) => {
     const purchaseRecord = participant.round2Purchases.find((p) => p.questionId === questionId);
     const purchaseUsed = purchaseRecord ? purchaseRecord.purchaseType : null;
 
-    const correct = selectedIndex === question.answerIndex;
+    const hasSelection = typeof selectedIndex === "number";
+    const correct = hasSelection && selectedIndex === question.answerIndex;
     let pointsEarned = 0;
     if (correct) {
       pointsEarned = doubledDown ? Math.round(question.points * 1.5) : question.points;
@@ -148,7 +153,7 @@ router.post("/answer", requireAuth, async (req, res) => {
 
     participant.round2.answers.push({
       questionId,
-      selectedIndex,
+      selectedIndex: hasSelection ? selectedIndex : null,
       correct,
       pointsEarned,
       purchaseUsed,
@@ -179,8 +184,21 @@ router.post("/complete", requireAuth, async (req, res) => {
       { "round2.completedAt": new Date(), currentRound: 3 },
       { new: true }
     );
-    res.json({ ok: true, currentRound: participant.currentRound });
+
+    const eliminationResult = await maybeRunRound2Elimination();
+
+    // Re-fetch in case this participant themselves got eliminated by the
+    // run that just happened.
+    const refreshed = await Participant.findById(req.participantId);
+
+    res.json({
+      ok: true,
+      currentRound: refreshed.currentRound,
+      isEliminated: refreshed.isEliminated,
+      eliminationRanNow: eliminationResult.ranNow
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Could not complete round 2." });
   }
 });

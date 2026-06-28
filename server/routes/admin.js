@@ -242,13 +242,68 @@ router.delete("/codes/unclaimed", async (req, res) => {
   res.json({ ok: true, deletedCount: result.deletedCount });
 });
 
+// --- Manual elimination override ---
+// In case a participant abandons mid-round and the automatic "everyone
+// finished" trigger never fires, the host can force elimination manually.
+
+// POST /api/admin/elimination/force-round2
+router.post("/elimination/force-round2", async (req, res) => {
+  try {
+    const alreadyRan = await Participant.exists({ eliminatedAfterRound: 2 });
+    if (alreadyRan) {
+      return res.status(409).json({ error: "Round 2 elimination has already run." });
+    }
+    const active = await Participant.find({ isAdmin: { $ne: true }, isEliminated: false });
+    const cutoff = Math.floor(active.length / 4);
+    if (cutoff === 0) {
+      return res.status(400).json({ error: "Not enough active participants to eliminate 1/4." });
+    }
+    const round2PointsOf = (p) => p.round2.answers.reduce((sum, a) => sum + (a.pointsEarned || 0), 0);
+    const sorted = [...active].sort((a, b) => round2PointsOf(a) - round2PointsOf(b));
+    const toEliminate = sorted.slice(0, cutoff);
+    await Participant.updateMany(
+      { _id: { $in: toEliminate.map((p) => p._id) } },
+      { isEliminated: true, eliminatedAfterRound: 2 }
+    );
+    res.json({ ok: true, eliminatedCount: toEliminate.length, names: toEliminate.map((p) => p.name) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not force round 2 elimination." });
+  }
+});
+
+// POST /api/admin/elimination/force-round3
+router.post("/elimination/force-round3", async (req, res) => {
+  try {
+    const alreadyRan = await Participant.exists({ eliminatedAfterRound: 3 });
+    if (alreadyRan) {
+      return res.status(409).json({ error: "Round 3 elimination has already run." });
+    }
+    const active = await Participant.find({ isAdmin: { $ne: true }, isEliminated: false });
+    const cutoff = Math.floor(active.length / 4);
+    if (cutoff === 0) {
+      return res.status(400).json({ error: "Not enough active participants to eliminate 1/4." });
+    }
+    const sorted = [...active].sort((a, b) => a.totalScore - b.totalScore);
+    const toEliminate = sorted.slice(0, cutoff);
+    await Participant.updateMany(
+      { _id: { $in: toEliminate.map((p) => p._id) } },
+      { isEliminated: true, eliminatedAfterRound: 3 }
+    );
+    res.json({ ok: true, eliminatedCount: toEliminate.length, names: toEliminate.map((p) => p.name) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not force round 3 elimination." });
+  }
+});
+
 // --- Leaderboard ---
 
 // GET /api/admin/leaderboard
 router.get("/leaderboard", async (req, res) => {
   const participants = await Participant.find({ isAdmin: { $ne: true } })
     .sort({ totalScore: -1 })
-    .select("name totalScore techCoins currentRound");
+    .select("name totalScore techCoins currentRound isEliminated eliminatedAfterRound");
   res.json({ leaderboard: participants });
 });
 

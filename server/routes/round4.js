@@ -3,7 +3,7 @@ const router = express.Router();
 const Participant = require("../models/Participant");
 const GameState = require("../models/GameState");
 const questions = require("../data/questions");
-const { requireAuth, requireAdmin } = require("../middleware/auth");
+const { requireAuth, requireAdmin, requireNotEliminated } = require("../middleware/auth");
 
 // Round 4 reuses the question bank (admin picks which questions to use
 // live) but the mechanic is different: participants bid coins for the
@@ -41,7 +41,7 @@ router.get("/current", requireAuth, async (req, res) => {
 // Body: { questionId, bidAmount }
 // Stores the bid as "pending" — not deducted yet, since the bid is only
 // charged/awarded once the admin resolves the round (win or lose).
-router.post("/bid", requireAuth, async (req, res) => {
+router.post("/bid", requireAuth, requireNotEliminated, async (req, res) => {
   try {
     const { questionId, bidAmount } = req.body;
     const participant = await Participant.findById(req.participantId);

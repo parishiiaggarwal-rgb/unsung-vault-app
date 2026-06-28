@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import TopBar from "../components/TopBar";
 import { useAuth } from "../context/AuthContext";
+
+const QUESTION_SECONDS = 60;
 
 export default function Round2() {
   const navigate = useNavigate();
@@ -13,6 +15,7 @@ export default function Round2() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [eliminated, setEliminated] = useState(false);
 
   const [selected, setSelected] = useState(null);
   const [removedIndex, setRemovedIndex] = useState(null);
@@ -22,6 +25,9 @@ export default function Round2() {
   const [doubledDown, setDoubledDown] = useState(false);
   const [feedback, setFeedback] = useState(null); // {correct, pointsEarned, correctIndex}
   const [purchasing, setPurchasing] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(QUESTION_SECONDS);
+
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     async function load() {
@@ -46,9 +52,22 @@ export default function Round2() {
     setImageText(null);
     setDoubledDown(false);
     setFeedback(null);
+    setSecondsLeft(QUESTION_SECONDS);
+    submittingRef.current = false;
   }
 
   const current = questions[index];
+
+  useEffect(() => {
+    if (!current || feedback) return; // stop counting once answered/shown
+    if (secondsLeft <= 0) {
+      handleSubmitAnswer(null); // null = timed out, no selection made
+      return;
+    }
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, current, feedback]);
 
   async function handlePurchase(type) {
     if (!current || feedback) return;
@@ -84,30 +103,39 @@ export default function Round2() {
     }
   }
 
-  async function handleSubmitAnswer() {
-    if (selected === null || !current) return;
+  async function handleSubmitAnswer(overrideIndex) {
+    const indexToSubmit = overrideIndex !== undefined ? overrideIndex : selected;
+    if (indexToSubmit === null && overrideIndex === undefined) return;
+    if (!current || submittingRef.current) return;
+    submittingRef.current = true;
     setError("");
     try {
       const res = await api.post("/round2/answer", {
         questionId: current.id,
-        selectedIndex: selected,
+        selectedIndex: indexToSubmit,
         doubledDown
       });
       setFeedback({
         correct: res.data.correct,
         pointsEarned: res.data.pointsEarned,
-        correctIndex: res.data.correctIndex
+        correctIndex: res.data.correctIndex,
+        timedOut: indexToSubmit === null
       });
       updateParticipant({ totalScore: res.data.totalScore, techCoins: res.data.techCoins });
     } catch (err) {
       setError(err.response?.data?.error || "Could not submit answer.");
+      submittingRef.current = false;
     }
   }
 
   async function handleNext() {
     if (index + 1 >= questions.length) {
       try {
-        await api.post("/round2/complete");
+        const res = await api.post("/round2/complete");
+        if (res.data.isEliminated) {
+          setEliminated(true);
+          return;
+        }
       } catch (err) {
         // proceed anyway
       }
@@ -126,9 +154,29 @@ export default function Round2() {
     );
   }
 
+  if (eliminated) {
+    return (
+      <div className="page">
+        <TopBar roundLabel="Round 2 — Mystery market" />
+        <div className="main" style={{ maxWidth: 600, textAlign: "center", paddingTop: 60 }}>
+          <p className="section-label">Case closed for you</p>
+          <h2 style={{ fontSize: 24, marginBottom: 16 }}>You've been eliminated</h2>
+          <p style={{ color: "var(--paper-dim)", fontSize: 13 }}>
+            Your score in the Mystery Market placed you in the bottom quarter of detectives this
+            round. Thanks for investigating — check the leaderboard to see how everyone finished.
+          </p>
+          <button className="btn" style={{ marginTop: 24 }} onClick={() => navigate("/leaderboard")}>
+            View leaderboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!current) return null;
 
   const canDoubleDown = !purchaseUsed && !feedback;
+  const urgent = secondsLeft <= 10 && !feedback;
 
   return (
     <div className="page">
@@ -136,9 +184,29 @@ export default function Round2() {
       <div className="main" style={{ maxWidth: 720 }}>
         {error && <div className="error-banner">{error}</div>}
 
-        <p className="section-label">
-          Question {index + 1} of {questions.length}
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <p className="section-label" style={{ marginBottom: 0 }}>
+            Question {index + 1} of {questions.length}
+          </p>
+          {!feedback && (
+            <span
+              style={{
+                fontFamily: "Oswald, sans-serif",
+                fontWeight: 600,
+                fontSize: 18,
+                color: urgent ? "var(--redact-red-bright)" : "var(--brass-bright)"
+              }}
+            >
+              0:{String(secondsLeft).padStart(2, "0")}
+            </span>
+          )}
+        </div>
+        <div className="timer-bar-track" style={{ marginBottom: 18 }}>
+          <div
+            className={`timer-bar-fill ${urgent ? "urgent" : ""}`}
+            style={{ width: feedback ? "100%" : `${(secondsLeft / QUESTION_SECONDS) * 100}%` }}
+          />
+        </div>
 
         <div className="card" style={{ marginBottom: 20 }}>
           <p style={{ fontSize: 16, lineHeight: 1.6, marginBottom: 18 }}>{current.prompt}</p>
@@ -196,7 +264,9 @@ export default function Round2() {
               className={feedback.correct ? "success-banner" : "error-banner"}
               style={{ marginTop: 16, marginBottom: 0 }}
             >
-              {feedback.correct
+              {feedback.timedOut
+                ? "Time's up. No answer was submitted — no points awarded."
+                : feedback.correct
                 ? `Correct. +${feedback.pointsEarned} points${doubledDown ? " (doubled down)" : ""}.`
                 : "Incorrect. No points awarded."}
             </div>
@@ -273,7 +343,7 @@ export default function Round2() {
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
           {!feedback ? (
-            <button className="btn" disabled={selected === null} onClick={handleSubmitAnswer}>
+            <button className="btn" disabled={selected === null} onClick={() => handleSubmitAnswer()}>
               Lock in answer
             </button>
           ) : (

@@ -4,6 +4,7 @@ const ParticipantSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     accessCode: { type: String, required: true, unique: true, trim: true },
+    isClaimed: { type: Boolean, default: true }, // false = pre-generated, not yet used by a real person
 
     techCoins: { type: Number, default: 500 },
     totalScore: { type: Number, default: 0 },
@@ -69,6 +70,8 @@ const ParticipantSchema = new mongoose.Schema(
 
     currentRound: { type: Number, default: 0 }, // 0 = not started, 1-4 = active round, 5 = finished
     isAdmin: { type: Boolean, default: false },
+    isEliminated: { type: Boolean, default: false },
+    eliminatedAfterRound: { type: Number, default: null },
 
     createdAt: { type: Date, default: Date.now }
   },

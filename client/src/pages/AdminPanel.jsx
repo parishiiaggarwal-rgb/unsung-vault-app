@@ -71,6 +71,7 @@ export default function AdminPanel() {
         <Round1Controls call={call} state={state} />
         <Round3Controls call={call} state={state} />
         <Round4Controls call={call} state={state} />
+        <EliminationControls call={call} />
         <GeneralControls call={call} />
         <AccessCodesPanel />
 
@@ -87,12 +88,18 @@ export default function AdminPanel() {
                 justifyContent: "space-between",
                 padding: "8px 0",
                 borderBottom: i === leaderboard.length - 1 ? "none" : "1px solid var(--hairline)",
-                fontSize: 13
+                fontSize: 13,
+                opacity: p.isEliminated ? 0.5 : 1
               }}
             >
               <span>
                 {i + 1}. {p.name}{" "}
                 <span style={{ color: "var(--paper-dim)" }}>(round {p.currentRound})</span>
+                {p.isEliminated && (
+                  <span style={{ color: "var(--redact-red-bright)", marginLeft: 8, fontSize: 11 }}>
+                    eliminated after round {p.eliminatedAfterRound}
+                  </span>
+                )}
               </span>
               <span>
                 {p.totalScore} pts &middot; {p.techCoins} coins
@@ -200,6 +207,38 @@ function Round4Controls({ call, state }) {
         Use "Close bidding + reveal" to fetch ranked bids on the server side first (check server
         logs or extend this panel to display them), then enter the winner's participant ID here
         to resolve coin/score changes.
+      </p>
+    </ControlBlock>
+  );
+}
+
+function EliminationControls({ call }) {
+  return (
+    <ControlBlock title="Elimination (1/4 cut)">
+      <button
+        className="btn danger small"
+        onClick={() => {
+          if (window.confirm("This eliminates the bottom 1/4 of active participants by Round 2 points right now, even if some haven't finished yet. Use only if someone is stuck. Continue?")) {
+            call("/admin/elimination/force-round2");
+          }
+        }}
+      >
+        Force round 2 elimination now
+      </button>
+      <button
+        className="btn danger small"
+        onClick={() => {
+          if (window.confirm("This eliminates the bottom 1/4 of remaining participants by total score right now, even if some haven't finished yet. Use only if someone is stuck. Continue?")) {
+            call("/admin/elimination/force-round3");
+          }
+        }}
+      >
+        Force round 3 elimination now
+      </button>
+      <p style={{ fontSize: 11, color: "var(--paper-dim)", marginTop: 8, width: "100%" }}>
+        Elimination normally runs automatically once every active participant finishes the round.
+        Use these only as a manual override if someone abandons their session and the automatic
+        cut never triggers.
       </p>
     </ControlBlock>
   );

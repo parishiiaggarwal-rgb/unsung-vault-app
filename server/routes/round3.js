@@ -3,14 +3,15 @@ const router = express.Router();
 const Participant = require("../models/Participant");
 const cases = require("../data/cases");
 const personalities = require("../data/personalities");
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireNotEliminated } = require("../middleware/auth");
+const { maybeRunRound3Elimination } = require("../utils/elimination");
 
 const POINTS_PER_CORRECT_MATCH = 15;
 
 // GET /api/round3/cases
 // Returns cases with clues shuffled (server doesn't reveal correctCode
 // or isRedHerring), plus the personality options for that case.
-router.get("/cases", requireAuth, async (req, res) => {
+router.get("/cases", requireAuth, requireNotEliminated, async (req, res) => {
   const safe = cases.map((c) => {
     const options = c.personalityCodes.map((code) => {
       const p = personalities.find((p) => p.code === code);
@@ -26,7 +27,7 @@ router.get("/cases", requireAuth, async (req, res) => {
 // Body: { caseId, matches: [{ clueId, assignedCode }] }
 // assignedCode can be null/omitted if the participant decided a clue is
 // a red herring and assigned it to nobody.
-router.post("/submit", requireAuth, async (req, res) => {
+router.post("/submit", requireAuth, requireNotEliminated, async (req, res) => {
   try {
     const { caseId, matches } = req.body;
     const caseData = cases.find((c) => c.id === caseId);
@@ -88,12 +89,21 @@ router.post("/submit", requireAuth, async (req, res) => {
 // POST /api/round3/complete
 router.post("/complete", requireAuth, async (req, res) => {
   try {
-    const participant = await Participant.findByIdAndUpdate(
-      req.participantId,
-      { "round3.completedAt": new Date(), currentRound: 4 },
-      { new: true }
-    );
-    res.json({ ok: true, currentRound: participant.currentRound });
+    await Participant.findByIdAndUpdate(req.participantId, {
+      "round3.completedAt": new Date(),
+      currentRound: 4
+    });
+
+    const eliminationResult = await maybeRunRound3Elimination();
+
+    const refreshed = await Participant.findById(req.participantId);
+
+    res.json({
+      ok: true,
+      currentRound: refreshed.currentRound,
+      isEliminated: refreshed.isEliminated,
+      eliminationRanNow: eliminationResult.ranNow
+    });
   } catch (err) {
     res.status(500).json({ error: "Could not complete round 3." });
   }

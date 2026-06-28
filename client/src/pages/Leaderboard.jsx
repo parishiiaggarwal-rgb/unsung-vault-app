@@ -47,7 +47,8 @@ export default function Leaderboard() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  borderColor: e.rank <= 3 ? "var(--brass)" : "var(--hairline)"
+                  borderColor: e.rank <= 3 && !e.isEliminated ? "var(--brass)" : "var(--hairline)",
+                  opacity: e.isEliminated ? 0.55 : 1
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -63,7 +64,17 @@ export default function Leaderboard() {
                     {e.rank}
                   </span>
                   <div>
-                    <p style={{ margin: 0, fontFamily: "Oswald, sans-serif", fontWeight: 600 }}>{e.name}</p>
+                    <p style={{ margin: 0, fontFamily: "Oswald, sans-serif", fontWeight: 600 }}>
+                      {e.name}
+                      {e.isEliminated && (
+                        <span
+                          className="stamp-tag"
+                          style={{ marginLeft: 10, color: "var(--redact-red-bright)", fontSize: 9 }}
+                        >
+                          Eliminated &middot; round {e.eliminatedAfterRound}
+                        </span>
+                      )}
+                    </p>
                     <p style={{ margin: 0, fontSize: 11, color: "var(--brass-bright)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       {e.title}
                     </p>
