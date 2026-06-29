@@ -98,7 +98,7 @@ export default function Round3() {
       } catch (err) {
         // proceed anyway
       }
-      navigate("/round4");
+      navigate("/leaderboard");
       return;
     }
     setCaseIndex((i) => i + 1);
@@ -272,7 +272,7 @@ export default function Round3() {
             </button>
           ) : (
             <button className="btn" onClick={handleNextCase}>
-              {caseIndex + 1 >= cases.length ? "Proceed to final round" : "Next case"}
+              {caseIndex + 1 >= cases.length ? "View final leaderboard" : "Next case"}
             </button>
           )}
         </div>

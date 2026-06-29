@@ -7,7 +7,6 @@ const authRoutes = require("./routes/auth");
 const round1Routes = require("./routes/round1");
 const round2Routes = require("./routes/round2");
 const round3Routes = require("./routes/round3");
-const round4Routes = require("./routes/round4");
 const adminRoutes = require("./routes/admin");
 const leaderboardRoutes = require("./routes/leaderboard");
 
@@ -20,7 +19,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/round1", round1Routes);
 app.use("/api/round2", round2Routes);
 app.use("/api/round3", round3Routes);
-app.use("/api/round4", round4Routes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 

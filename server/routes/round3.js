@@ -91,7 +91,7 @@ router.post("/complete", requireAuth, async (req, res) => {
   try {
     await Participant.findByIdAndUpdate(req.participantId, {
       "round3.completedAt": new Date(),
-      currentRound: 4
+      currentRound: 5 // 5 = finished, no round 4 anymore — straight to leaderboard
     });
 
     const eliminationResult = await maybeRunRound3Elimination();

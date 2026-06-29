@@ -7,7 +7,6 @@ import Lobby from "./pages/Lobby";
 import Round1 from "./pages/Round1";
 import Round2 from "./pages/Round2";
 import Round3 from "./pages/Round3";
-import Round4 from "./pages/Round4";
 import Leaderboard from "./pages/Leaderboard";
 import AdminLogin from "./pages/AdminLogin";
 import AdminPanel from "./pages/AdminPanel";
@@ -49,14 +48,6 @@ export default function App() {
             element={
               <RequireParticipant>
                 <Round3 />
-              </RequireParticipant>
-            }
-          />
-          <Route
-            path="/round4"
-            element={
-              <RequireParticipant>
-                <Round4 />
               </RequireParticipant>
             }
           />

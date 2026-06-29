@@ -40,7 +40,7 @@ router.post("/round1/stop", async (req, res) => {
 });
 
 // POST /api/admin/advance-round
-// Body: { round } — moves the global activeRound marker forward (2, 3, 4, 5).
+// Body: { round } — moves the global activeRound marker forward (2, 3, 5).
 router.post("/advance-round", async (req, res) => {
   const { round } = req.body;
   const state = await getOrCreateState();
@@ -60,98 +60,6 @@ router.post("/round3/set-case", async (req, res) => {
   res.json({ ok: true, state, totalCases: cases.length });
 });
 
-// --- Round 4 admin: control the auction ---
-
-// POST /api/admin/round4/set-question
-// Body: { questionId }
-router.post("/round4/set-question", async (req, res) => {
-  const { questionId } = req.body;
-  const question = questions.find((q) => q.id === questionId);
-  if (!question) return res.status(400).json({ error: "Unknown question." });
-
-  const state = await getOrCreateState();
-  state.round4.currentQuestionId = questionId;
-  state.round4.biddingOpen = false;
-  state.round4.bidsRevealed = false;
-  await state.save();
-  res.json({ ok: true, state });
-});
-
-// POST /api/admin/round4/open-bidding
-router.post("/round4/open-bidding", async (req, res) => {
-  const state = await getOrCreateState();
-  if (!state.round4.currentQuestionId) {
-    return res.status(400).json({ error: "Set a question before opening bidding." });
-  }
-  state.round4.biddingOpen = true;
-  state.round4.bidsRevealed = false;
-  await state.save();
-  res.json({ ok: true, state });
-});
-
-// POST /api/admin/round4/close-bidding
-// Closes bidding and returns all bids for this question for the live
-// reveal moment, sorted highest first.
-router.post("/round4/close-bidding", async (req, res) => {
-  const state = await getOrCreateState();
-  state.round4.biddingOpen = false;
-  state.round4.bidsRevealed = true;
-  await state.save();
-
-  const questionId = state.round4.currentQuestionId;
-  const participants = await Participant.find({
-    "round4.bids.questionId": questionId
-  });
-
-  const bids = participants
-    .map((p) => {
-      const bid = p.round4.bids.find((b) => b.questionId === questionId);
-      return { participantId: p._id, name: p.name, bidAmount: bid.bidAmount };
-    })
-    .sort((a, b) => b.bidAmount - a.bidAmount);
-
-  res.json({ ok: true, bids, questionId });
-});
-
-// POST /api/admin/round4/resolve
-// Body: { questionId, winnerParticipantId, winnerCorrect }
-// Applies coin deltas: the winner either gains or loses their bid amount.
-// Everyone else who bid but didn't win gets their bid amount refunded
-// (since they never got to answer) — only the winner's coins are at risk.
-router.post("/round4/resolve", async (req, res) => {
-  try {
-    const { questionId, winnerParticipantId, winnerCorrect } = req.body;
-
-    const participants = await Participant.find({
-      "round4.bids.questionId": questionId
-    });
-
-    for (const p of participants) {
-      const bid = p.round4.bids.find((b) => b.questionId === questionId);
-      const isWinner = String(p._id) === String(winnerParticipantId);
-
-      if (isWinner) {
-        bid.won = true;
-        bid.correct = !!winnerCorrect;
-        bid.coinsDelta = winnerCorrect ? bid.bidAmount : -bid.bidAmount;
-        p.techCoins += bid.coinsDelta;
-        if (winnerCorrect) {
-          p.totalScore += bid.bidAmount;
-        }
-      } else {
-        bid.won = false;
-        bid.coinsDelta = 0; // non-winners simply never spent their bid
-      }
-      await p.save();
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Could not resolve auction round." });
-  }
-});
-
 // DELETE /api/admin/participants/reset
 // Wipes ALL non-admin participant records — full clean slate for testing.
 // Does not touch the GameState (round/timer), use /admin/reset-game for that.
@@ -167,8 +75,8 @@ router.delete("/participants/reset", async (req, res) => {
 
 // POST /api/admin/reset-game
 // Resets the global GameState back to the lobby (round 0), all timers
-// and auction state cleared. Participants and their scores are untouched
-// — use /admin/participants/reset for that.
+// cleared. Participants and their scores are untouched — use
+// /admin/participants/reset for that.
 router.post("/reset-game", async (req, res) => {
   try {
     await GameState.deleteMany({});
