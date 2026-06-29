@@ -11,6 +11,7 @@ const ParticipantSchema = new mongoose.Schema(
 
     // Round 1 — Memory Vault
     round1: {
+      startedAt: { type: Date, default: null }, // set the moment this participant logs in / first reaches round 1
       filesOpened: [{ type: String }], // personality codes opened
       completedAt: { type: Date, default: null }
     },
@@ -53,22 +54,26 @@ const ParticipantSchema = new mongoose.Schema(
       completedAt: { type: Date, default: null }
     },
 
-    // Round 4 — Master Detective Auction
+    // Round 4 — Master Detective Auction (kept for backward data compatibility,
+    // unused since round 4 was removed from the live game)
     round4: {
       bids: [
         {
           questionId: String,
           bidAmount: Number,
+          placedAt: { type: Date, default: Date.now },
           won: Boolean,
           correct: Boolean,
+          selectedIndex: { type: Number, default: null },
+          timedOut: { type: Boolean, default: false },
           coinsDelta: Number,
-          resolvedAt: { type: Date, default: Date.now }
+          resolvedAt: { type: Date, default: null }
         }
       ],
       completedAt: { type: Date, default: null }
     },
 
-    currentRound: { type: Number, default: 0 }, // 0 = not started, 1-4 = active round, 5 = finished
+    currentRound: { type: Number, default: 0 }, // 0 = not started, 1-3 = active round, 5 = finished
     isAdmin: { type: Boolean, default: false },
     isEliminated: { type: Boolean, default: false },
     eliminatedAfterRound: { type: Number, default: null },

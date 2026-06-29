@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const Participant = require("../models/Participant");
-const GameState = require("../models/GameState");
 const personalities = require("../data/personalities");
 const { requireAuth } = require("../middleware/auth");
 
@@ -61,12 +60,19 @@ router.post("/complete", requireAuth, async (req, res) => {
 });
 
 // GET /api/round1/status
-// Returns global timer state set by the admin, so all participants stay
-// in sync on when the vault opened and when it locks.
+// Returns THIS participant's personal Round 1 timer — their own clock
+// started the moment they first logged in, independent of everyone else.
 router.get("/status", requireAuth, async (req, res) => {
-  let state = await GameState.findOne({ singleton: "main" });
-  if (!state) state = await GameState.create({ singleton: "main" });
-  res.json({ round1: state.round1, activeRound: state.activeRound });
+  const participant = await Participant.findById(req.participantId).select("round1");
+  if (!participant) return res.status(404).json({ error: "Participant not found." });
+
+  res.json({
+    round1: {
+      startedAt: participant.round1.startedAt,
+      durationSeconds: 1200,
+      isRunning: !!participant.round1.startedAt && !participant.round1.completedAt
+    }
+  });
 });
 
 module.exports = router;

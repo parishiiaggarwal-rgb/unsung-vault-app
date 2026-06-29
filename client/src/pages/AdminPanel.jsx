@@ -63,14 +63,14 @@ export default function AdminPanel() {
           <p style={{ margin: 0, fontSize: 13 }}>
             Active round: <strong style={{ color: "var(--brass-bright)" }}>{state.activeRound}</strong>
           </p>
-          <p style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Round 1 timer running: {state.round1.isRunning ? "yes" : "no"}
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--paper-dim)" }}>
+            Round 1 timers are personal per detective — there's no single shared timer to watch
+            here anymore.
           </p>
         </div>
 
         <Round1Controls call={call} state={state} />
         <Round3Controls call={call} state={state} />
-        <Round4Controls call={call} state={state} />
         <EliminationControls call={call} />
         <GeneralControls call={call} />
         <AccessCodesPanel />
@@ -115,12 +115,10 @@ export default function AdminPanel() {
 function Round1Controls({ call, state }) {
   return (
     <ControlBlock title="Round 1 — Memory vault">
-      <button className="btn small" onClick={() => call("/admin/round1/start")}>
-        Start 20-min timer
-      </button>
-      <button className="btn ghost small" onClick={() => call("/admin/round1/stop")}>
-        Stop timer
-      </button>
+      <p style={{ fontSize: 12, color: "var(--paper-dim)", width: "100%", marginBottom: 4 }}>
+        No start button needed — each detective's own 20-minute timer begins the moment they log
+        in, so people can join whenever they're ready.
+      </p>
       <button className="btn ghost small" onClick={() => call("/admin/advance-round", { round: 2 })}>
         Force-advance everyone to round 2
       </button>
@@ -143,71 +141,9 @@ function Round3Controls({ call }) {
       <button className="btn small" onClick={() => call("/admin/round3/set-case", { caseIndex })}>
         Set visible case index
       </button>
-      <button className="btn ghost small" onClick={() => call("/admin/advance-round", { round: 4 })}>
-        Force-advance everyone to round 4
+      <button className="btn ghost small" onClick={() => call("/admin/advance-round", { round: 5 })}>
+        Force-advance everyone to final leaderboard
       </button>
-    </ControlBlock>
-  );
-}
-
-function Round4Controls({ call, state }) {
-  const [questionId, setQuestionId] = useState("Q15");
-  const [winnerId, setWinnerId] = useState("");
-  const [winnerCorrect, setWinnerCorrect] = useState(true);
-
-  return (
-    <ControlBlock title="Round 4 — Master detective auction">
-      <input
-        placeholder="Question ID e.g. Q15"
-        value={questionId}
-        onChange={(e) => setQuestionId(e.target.value)}
-        style={{ width: 160 }}
-      />
-      <button className="btn small" onClick={() => call("/admin/round4/set-question", { questionId })}>
-        Set question
-      </button>
-      <button className="btn small" onClick={() => call("/admin/round4/open-bidding")}>
-        Open bidding
-      </button>
-      <button
-        className="btn small"
-        onClick={async () => {
-          await call("/admin/round4/close-bidding");
-        }}
-      >
-        Close bidding + reveal
-      </button>
-
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10, width: "100%" }}>
-        <input
-          placeholder="Winner participant ID"
-          value={winnerId}
-          onChange={(e) => setWinnerId(e.target.value)}
-          style={{ width: 220 }}
-        />
-        <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-          <input
-            type="checkbox"
-            style={{ width: "auto" }}
-            checked={winnerCorrect}
-            onChange={(e) => setWinnerCorrect(e.target.checked)}
-          />
-          Winner answered correctly
-        </label>
-        <button
-          className="btn small"
-          onClick={() =>
-            call("/admin/round4/resolve", { questionId, winnerParticipantId: winnerId, winnerCorrect })
-          }
-        >
-          Resolve bid
-        </button>
-      </div>
-      <p style={{ fontSize: 11, color: "var(--paper-dim)", marginTop: 8 }}>
-        Use "Close bidding + reveal" to fetch ranked bids on the server side first (check server
-        logs or extend this panel to display them), then enter the winner's participant ID here
-        to resolve coin/score changes.
-      </p>
     </ControlBlock>
   );
 }

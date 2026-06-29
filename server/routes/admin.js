@@ -20,25 +20,6 @@ router.get("/state", async (req, res) => {
   res.json({ state });
 });
 
-// POST /api/admin/round1/start
-// Starts the 20-minute Memory Vault timer for everyone.
-router.post("/round1/start", async (req, res) => {
-  const state = await getOrCreateState();
-  state.activeRound = 1;
-  state.round1.isRunning = true;
-  state.round1.startedAt = new Date();
-  await state.save();
-  res.json({ ok: true, state });
-});
-
-// POST /api/admin/round1/stop
-router.post("/round1/stop", async (req, res) => {
-  const state = await getOrCreateState();
-  state.round1.isRunning = false;
-  await state.save();
-  res.json({ ok: true, state });
-});
-
 // POST /api/admin/advance-round
 // Body: { round } — moves the global activeRound marker forward (2, 3, 5).
 router.post("/advance-round", async (req, res) => {
@@ -74,8 +55,8 @@ router.delete("/participants/reset", async (req, res) => {
 });
 
 // POST /api/admin/reset-game
-// Resets the global GameState back to the lobby (round 0), all timers
-// cleared. Participants and their scores are untouched — use
+// Resets the global GameState back to default, all timers cleared.
+// Participants and their scores are untouched — use
 // /admin/participants/reset for that.
 router.post("/reset-game", async (req, res) => {
   try {
